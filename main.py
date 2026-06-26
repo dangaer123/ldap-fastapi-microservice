@@ -7,20 +7,21 @@ app = FastAPI(title="LDAP Auth & Profile API")
 
 LDAP_SERVER_URL = "ldap://127.0.0.1:389"
 LDAP_BASE_DN = "dc=company,dc=local"
-
+# Служебный пользователь
 LDAP_SEARCH_USER_DN = "cn=api_reader,dc=company,dc=local"
 LDAP_SEARCH_USER_PASSWORD = "readerpassword"
 
-
+# Шаблон входных данных для аутентификации
 class LoginSchema(BaseModel):
     username: str
     password: str
 
+# Класс для ошибки в случае отсутствия запрашиваемого пользователя в БД
 class UserNotFoundError(Exception):
     """Вызывается, если пользователя нет в дереве LDAP"""
     pass
 
-
+# Вспомогательная функция для поиска пользователя по uid
 def find_user_dn(username: str) -> str:
     server = Server(LDAP_SERVER_URL, get_info=ALL)
 
@@ -37,7 +38,7 @@ def find_user_dn(username: str) -> str:
     except LDAPException:
         raise
 
-
+# Функция для аутентификации пользователя
 @app.post("/auth")
 def authenticate_user(payload: LoginSchema):
     server = Server(LDAP_SERVER_URL, get_info=ALL)
@@ -66,7 +67,7 @@ def authenticate_user(payload: LoginSchema):
             detail="Ошибка авторизации: неверный логин или пароль"
         )
 
-
+# Функция для получения данных о пользователе
 @app.get("/users/{username}")
 def get_user_profile(username: str):
     server = Server(LDAP_SERVER_URL, get_info=ALL)
