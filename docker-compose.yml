@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  openldap:
+    image: osixia/openldap:latest
+    container_name: my-ldap
+    environment:
+      LDAP_ORGANISATION: "My Company"
+      LDAP_DOMAIN: "company.local"
+      LDAP_ADMIN_PASSWORD: "adminpassword"
+      # Включаем автоматическое создание служебного Read-Only аккаунта
+      LDAP_READONLY_USER: "true"
+      LDAP_READONLY_USER_USERNAME: "api_reader"
+      LDAP_READONLY_USER_PASSWORD: "readerpassword"
+    ports:
+      # Блокируем доступ извне. Сервер слушает только сам компьютер.
+      - "127.0.0.1:389:389"
+
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: my-ldap-admin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: "openldap"
+      PHPLDAPADMIN_HTTPS: "false"
+    ports:
+      # Защищаем админку аналогичным образом
+      - "127.0.0.1:8081:80"
+    depends_on:
+      - openldap
