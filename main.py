@@ -67,15 +67,15 @@ def authenticate_user(payload: LoginSchema):
             detail="Ошибка авторизации: неверный логин или пароль"
         )
 
-# Функция для получения данных о пользователе
-@app.get("/users/{username}")
-def get_user_profile(username: str):
+# Функция для получения данных о пользователе по почте
+@app.get("/users/{email}")
+def get_user_profile(email: str):
     server = Server(LDAP_SERVER_URL, get_info=ALL)
 
     try:
         conn = Connection(server, user=LDAP_SEARCH_USER_DN, password=LDAP_SEARCH_USER_PASSWORD, auto_bind=True)
 
-        search_filter = f"(uid={username})"
+        search_filter = f"(mail={email})"
 
         conn.search(
             search_base=LDAP_BASE_DN,
@@ -85,7 +85,7 @@ def get_user_profile(username: str):
         )
 
         if not conn.entries:
-            raise HTTPException(status_code=404, detail=f"Пользователь '{username}' не найден")
+            raise HTTPException(status_code=404, detail=f"Пользователь с почтой '{email}' не найден")
 
         entry = conn.entries[0]
 
