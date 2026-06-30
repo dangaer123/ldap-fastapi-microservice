@@ -10,6 +10,10 @@ LDAP_BASE_DN = "dc=company,dc=local"
 # Служебный пользователь
 LDAP_SEARCH_USER_DN = "cn=api_reader,dc=company,dc=local"
 LDAP_SEARCH_USER_PASSWORD = "readerpassword"
+# Основной класс для учётных записей
+LDAP_USER_CLASS = "inetOrgPerson"
+# Атрибут для фильтра поиска
+LDAP_LOGIN_ATTRIBUTE = "uid"
 
 # Шаблон входных данных для аутентификации
 class LoginSchema(BaseModel):
@@ -21,12 +25,12 @@ class UserNotFoundError(Exception):
     """Вызывается, если пользователя нет в дереве LDAP"""
     pass
 
-# Класс для ошибки в случае отсутствия класса inetOrgPerson
+# Класс для ошибки в случае отсутствия класса LDAP_USER_CLASS
 class LdapSchemaError(Exception):
     """Вызывается, если структура или классы схемы LDAP нарушены/отсутствуют"""
     pass
 
-# Извлечение доступных атрибутов класса inetOrgPerson с LDAP-сервера
+# Извлечение доступных атрибутов класса LDAP_USER_CLASS с LDAP-сервера
 def fetch_allowed_attributes() -> list[str]:
     server = Server(LDAP_SERVER_URL, get_info=ALL)
     try:
@@ -35,7 +39,7 @@ def fetch_allowed_attributes() -> list[str]:
         schema = server.schema
 
         all_attrs = set()
-        target_classes = ['inetOrgPerson']
+        target_classes = [LDAP_USER_CLASS]
 
         while target_classes:
             current_class_name = target_classes.pop(0)
@@ -62,7 +66,7 @@ def find_user_dn(username: str) -> str:
 
     try:
         conn = Connection(server, user=LDAP_SEARCH_USER_DN, password=LDAP_SEARCH_USER_PASSWORD, auto_bind=True)
-        search_filter = f"(uid={username})"
+        search_filter = f"({LDAP_LOGIN_ATTRIBUTE}={username})"
         conn.search(search_base=LDAP_BASE_DN, search_filter=search_filter, search_scope=SUBTREE)
 
         if not conn.entries:
@@ -119,7 +123,7 @@ def get_available_attributes():
     except LdapSchemaError:
         raise HTTPException(
             status_code=500,
-            detail="Объектный класс 'inetOrgPerson' не найден в схеме LDAP-сервера"
+            detail=f"Объектный класс {LDAP_USER_CLASS} не найден в схеме LDAP-сервера"
         )
 
 
@@ -170,4 +174,4 @@ def search_user_profile(
     except LDAPException:
         raise HTTPException(status_code=500, detail="LDAP-сервер недоступен")
     except LdapSchemaError:
-        raise HTTPException(status_code=500,detail="Объектный класс 'inetOrgPerson' не найден в схеме LDAP-сервера")
+        raise HTTPException(status_code=500,detail=f"Объектный класс {LDAP_USER_CLASS} не найден в схеме LDAP-сервера")
