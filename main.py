@@ -21,6 +21,11 @@ class UserNotFoundError(Exception):
     """Вызывается, если пользователя нет в дереве LDAP"""
     pass
 
+# Класс для ошибки в случае отсутствия класса inetOrgPerson
+class LdapSchemaError(Exception):
+    """Вызывается, если структура или классы схемы LDAP нарушены/отсутствуют"""
+    pass
+
 # Извлечение доступных атрибутов класса inetOrgPerson с LDAP-сервера
 def fetch_allowed_attributes() -> list[str]:
     server = Server(LDAP_SERVER_URL, get_info=ALL)
@@ -44,12 +49,12 @@ def fetch_allowed_attributes() -> list[str]:
                     target_classes.extend(obj_class.superior)
 
         if not all_attrs:
-            return ["uid", "mail", "mobile", "cn", "sn"]
+            raise LdapSchemaError()
 
         return sorted(list(all_attrs))
 
     except LDAPException:
-        return ["uid", "mail", "mobile", "cn", "sn"]
+        raise
 
 # Вспомогательная функция для поиска пользователя по uid
 def find_user_dn(username: str) -> str:
@@ -100,11 +105,23 @@ def authenticate_user(payload: LoginSchema):
 # Эндпоинт для получения доступных атрибутов
 @app.get("/attributes", summary="Получить динамический список полей с сервера")
 def get_available_attributes():
-    attrs = fetch_allowed_attributes()
-    return {
-        "status": "success",
-        "available_attributes": attrs
-    }
+    try:
+        attrs = fetch_allowed_attributes()
+        return {
+            "status": "success",
+            "available_attributes": attrs
+        }
+    except LDAPException:
+        raise HTTPException(
+            status_code=503,
+            detail="LDAP-сервер временно недоступен. Не удалось загрузить схему."
+        )
+    except LdapSchemaError:
+        raise HTTPException(
+            status_code=500,
+            detail="Объектный класс 'inetOrgPerson' не найден в схеме LDAP-сервера"
+        )
+
 
 # Функция для получения данных о пользователе по выбранному атрибуту
 @app.get("/users/", summary="Динамический поиск профиля")
@@ -112,16 +129,18 @@ def search_user_profile(
         attr: str = Query(..., description="Поле для поиска (сверьтесь с /attributes)"),
         value: str = Query(..., description="Значение для поиска")
 ):
-    allowed_attributes = fetch_allowed_attributes()
-    if attr not in allowed_attributes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Атрибут '{attr}' не поддерживается сервером для поиска."
-        )
 
     server = Server(LDAP_SERVER_URL, get_info=ALL)
     try:
         conn = Connection(server, user=LDAP_SEARCH_USER_DN, password=LDAP_SEARCH_USER_PASSWORD, auto_bind=True)
+
+        allowed_attributes = fetch_allowed_attributes()
+        if attr not in allowed_attributes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Атрибут '{attr}' не поддерживается сервером для поиска."
+            )
+
         search_filter = f"({attr}={value})"
 
         conn.search(
@@ -150,3 +169,5 @@ def search_user_profile(
         raise HTTPException(status_code=500, detail="Ошибка конфигурации служебного аккаунта")
     except LDAPException:
         raise HTTPException(status_code=500, detail="LDAP-сервер недоступен")
+    except LdapSchemaError:
+        raise HTTPException(status_code=500,detail="Объектный класс 'inetOrgPerson' не найден в схеме LDAP-сервера")
