@@ -8,13 +8,14 @@ services:
       LDAP_ORGANISATION: "My Company"
       LDAP_DOMAIN: "company.local"
       LDAP_ADMIN_PASSWORD: "adminpassword"
-      # Включаем автоматическое создание служебного Read-Only аккаунта
       LDAP_READONLY_USER: "true"
       LDAP_READONLY_USER_USERNAME: "api_reader"
       LDAP_READONLY_USER_PASSWORD: "readerpassword"
     ports:
-      # Блокируем доступ извне. Сервер слушает только сам компьютер.
       - "127.0.0.1:389:389"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
 
   phpldapadmin:
     image: osixia/phpldapadmin:latest
@@ -23,7 +24,10 @@ services:
       PHPLDAPADMIN_LDAP_HOSTS: "openldap"
       PHPLDAPADMIN_HTTPS: "false"
     ports:
-      # Защищаем админку аналогичным образом
       - "127.0.0.1:8081:80"
     depends_on:
       - openldap
+
+volumes:
+  ldap_data:
+  ldap_config:
